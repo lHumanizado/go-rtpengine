@@ -1,4 +1,4 @@
-module lhumanizado/rtpengine-ng
+module github.com/lhumanizado/go-rtpengine
 
 go 1.22
 
