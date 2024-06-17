@@ -1,4 +1,4 @@
-module go.voiplens.io/rtpengine
+module lhumanizado/rtpengine-ng
 
 go 1.22
 

@@ -6,6 +6,7 @@ import (
 	"net"
 	"net/url"
 	"time"
+	"encoding/json"
 
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
@@ -80,8 +81,34 @@ func (c Client) RunCommand(command string) (map[string]interface{}, error) {
 	return decodedMsg, nil
 }
 
+func (c Client) RunJSONCommand(command map[string]interface{}) (map[string]interface{}, error) {
+	cookie := uuid.New().String()
+	err := c.sendJSONCommand(cookie, command)
+	if err != nil {
+		return nil, err
+	}
+
+	decodedMsg, err := c.getResponse(cookie)
+	if err != nil {
+		return nil, err
+	}
+	return decodedMsg, nil
+}
+
 func (c Client) sendCommand(cookie string, command string) error {
 	message, err := encodeCommand(cookie, command)
+	if err != nil {
+		return err
+	}
+	level.Debug(c.logger).Log("cookie", cookie, "command", command, "message", string(message))
+	if _, err := c.conn.Write(message); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (c Client) sendJSONCommand(cookie string, command map[string]interface{}) error {
+	message, err := encodeJSONCommand(cookie, command)
 	if err != nil {
 		return err
 	}
@@ -156,4 +183,13 @@ func encodeCommand(cookie string, command string) ([]byte, error) {
 	}
 	bid := []byte(cookie + " ")
 	return append(bid, bdata.Bytes()...), nil
+}
+
+func encodeJSONCommand(cookie string, command map[string]interface{}) ([]byte, error) {
+	jsonData, err := json.Marshal(command)
+	if err != nil {
+		return nil, err
+	}
+	bid := []byte(cookie + " ")
+	return append(bid, jsonData...), nil
 }
