@@ -88,7 +88,7 @@ func (c Client) RunJSONCommand(command map[string]interface{}) (map[string]inter
 		return nil, err
 	}
 
-	decodedMsg, err := c.getResponse(cookie)
+	decodedMsg, err := c.getJSONResponse(cookie)
 	if err != nil {
 		return nil, err
 	}
@@ -117,6 +117,24 @@ func (c Client) sendJSONCommand(cookie string, command map[string]interface{}) e
 		return err
 	}
 	return nil
+}
+
+func (c Client) getJSONResponse(cookie string) (map[string]interface{}, error) {
+	c.conn.SetReadDeadline(time.Now().Add(c.Timeout))
+	response := make([]byte, 65536)
+	n, err := c.conn.Read(response)
+	if err != nil {
+		return nil, err
+	}
+
+	payload := response[:n]
+
+	level.Debug(c.logger).Log("cookie", cookie, "response", string(payload))
+	decodedMsg, err := decodeJSONResponse(cookie, payload)
+	if err != nil {
+		return nil, err
+	}
+	return c.validateResponse(decodedMsg)
 }
 
 func (c Client) getResponse(cookie string) (map[string]interface{}, error) {
@@ -152,6 +170,28 @@ func (c Client) validateResponse(decodedMsg map[string]interface{}) (map[string]
 		}
 	}
 	return nil, errors.New("Unknown error")
+}
+
+func decodeJSONResponse(cookie string, response []byte) (map[string]interface{}, error) {
+	cookieIndex := bytes.IndexAny(response, " ")
+	if cookieIndex != len(cookie) {
+		return nil, errors.New("Error parsing message")
+	}
+
+	cookieResponse := string(response[:cookieIndex])
+	if cookieResponse != cookie {
+		return nil, errors.New("Expected cookie did not match")
+	}
+
+	encodedData := response[cookieIndex+1:]
+
+	var parsedData map[string]interface{}
+	err := json.Unmarshal(encodedData, &parsedData)
+	if err != nil {
+		return nil, err
+	}
+
+	return parsedData, nil
 }
 
 func decodeResponse(cookie string, response []byte) (map[string]interface{}, error) {
